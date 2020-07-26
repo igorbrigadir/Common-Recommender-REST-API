@@ -1,0 +1,408 @@
+openapi: 3.0.0
+info:
+  title: Common Recommender REST API
+  version: '1.0'
+  description: 'Common Recommender REST API for recommender web applications. Specific implementations are encouraged to support the following core interface, but may extend the API as necessary.'
+  license:
+    name: MIT
+    url: 'https://github.com/igorbrigadir/Common-Recommender-REST-API/blob/main/LICENSE'
+servers:
+  - url: 'http://localhost:3000'
+paths:
+  /users:
+    post:
+      summary: ''
+      operationId: post-users
+      responses:
+        '200':
+          description: OK
+      description: |-
+        Adds a new user to the server. If a user ID is specified in the request body, and currently unused, the user is assigned the ID. If an existing user possesses the ID, the request fails.
+        The request body may also contain events related to this user.
+        If no ID is specified, one is is generated for the user by the server and returned in the response.
+        The request will also return a new revision ID for use by a future update request.
+  '/users/{uid}':
+    parameters:
+      - type: string
+        name: uid
+        in: path
+        required: true
+    put:
+      summary: ''
+      operationId: put-users-uid
+      responses:
+        '200':
+          description: OK
+      description: |-
+        If the specified ID is unused, a new user is created and assigned this ID.
+        If an existing user possesses the ID, the request must provide the user's most recent revision ID in order to update their data.
+        The request will return a new revision ID for use by a future update request.
+    get:
+      summary: ''
+      operationId: get-users-uid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                title: user
+                type: object
+                x-tags:
+                  - client
+                properties:
+                  id:
+                    type: string
+                  last_update:
+                    type: string
+                    description: Last Updated Model
+                description: A User to generate recommendations for
+      description: "Retrieves user data from the server. This includes user attributes, but does not include the user's history of events."
+    delete:
+      summary: ''
+      operationId: delete-users-uid
+      responses:
+        '200':
+          description: OK
+      description: Deletes the specified user from the server.
+  '/users/{uid}/statistics':
+    parameters:
+      - type: string
+        name: uid
+        in: path
+        required: true
+    get:
+      summary: Statistics
+      tags:
+        - users
+      responses: {}
+      operationId: get-users-uid-statistics
+      description: Retrieves common statistics regarding the specified user. Implementations are free to specify their own fields.
+  '/users/{uid}/predictions':
+    parameters:
+      - type: string
+        name: uid
+        in: path
+        required: true
+    get:
+      summary: ''
+      tags: []
+      responses: {}
+      operationId: get-users-uid-predictions
+      description: Retrieves user rating predictions for all possible items.
+      parameters:
+        - schema:
+            type: boolean
+          in: query
+          name: usedStoredRatings
+          description: |-
+            Enables the server to return a user rating rather than a prediction if one has been provided for an item.
+            ex: GET /users/predictions?usedStoredRatings=true Allows the server to retrieve user ratings in place of predictions when they are available.
+        - schema:
+            type: string
+          in: query
+          name: item
+          description: |-
+            The ID of an item for which a rating prediction is to be retrieved. Multiple IDs can be specified simultaneously. If no IDs are specified, the server will return predictions for all possible items.
+            ex: GET /users/predictions?item=42&item=70 Retrieves user rating predictions for items 42 and 70.
+  '/users/{uid}/recommendations':
+    parameters:
+      - type: string
+        name: uid
+        in: path
+        required: true
+    get:
+      summary: Recommendations
+      tags:
+        - client
+        - backend
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items: {}
+      operationId: get-users-uid-recommendations
+      description: 'Retrieves the complete recommendation set for the specified user. If possible, items are returned in ranked order.'
+      requestBody:
+        description: ''
+      parameters:
+        - schema:
+            type: string
+          in: query
+          name: count
+          description: |-
+            The maximum number of recommendations to be returned. If this maximum cannot be reached, the server returns as many recommendations as possible.
+            ex: GET /users/[uid]/recommendations?count=10 Retrieves a maximum of 10 recommended items.
+  '/users/{uid}/events/{type}':
+    parameters:
+      - type: string
+        name: uid
+        in: path
+        required: true
+      - type: string
+        name: type
+        in: path
+    get:
+      summary: Your GET endpoint
+      tags: []
+      responses: {}
+      operationId: get-users-uid-events-type
+      description: Retrieves all events associated with the specified user or all events of a specific type associated with the specified user.
+    post:
+      summary: ''
+      operationId: post-users-uid-events-type
+      responses:
+        '200':
+          description: OK
+      description: |-
+        Add a new event of the specified type to the server. If an ID is specified in the request body, the event is given the specified ID.
+        Otherwise, the server generates an ID for the event and returns it in the response.
+  '/users/{uid}/currentRatings':
+    parameters:
+      - type: string
+        name: uid
+        in: path
+        required: true
+    get:
+      summary: Your GET endpoint
+      tags: []
+      responses: {}
+      operationId: get-users-uid-currentRatings
+      description: |-
+        Retrieves a simple vector containing the most recent rating of each item currently rated by the user.
+        Note that this will return the same set of events as GET /users/[uid]/events/ratings?history=current&null=false, but in a simple vector form.
+      parameters:
+        - schema:
+            type: string
+          in: query
+          name: item
+          description: |-
+            Required for all Event Types
+            The ID of an item with which all returned events are associated. If no ID is specified, the server will consider all possible items.
+            ex: GET /users/[uid]/events/purchases?item=42&item=70 Retrieves all user purchase events associated with items 42 and 70.
+          required: true
+        - schema:
+            type: string
+          in: query
+          name: history
+          description: |-
+            Required for all Event Types
+            The time period during which all returned events occurred.
+            ex: GET /users/[uid]/events?history=1m Retrieves all events associated with the user that have occurred within the past month.
+          required: true
+        - schema:
+            type: boolean
+          in: query
+          name: 'null'
+          description: |-
+            Required Specifically for the Rating Event Type
+            Instructs the server to exclude any null ratings from the returned collection of events. By default, null-valued ratings are included.
+            ex: GET /users/[uid]/events/ratings?item=42&item=70&null=false Returns all user rating events associated with items 42 and 70, excluding any null ratings.
+  '/items/{iid}':
+    parameters:
+      - type: string
+        name: iid
+        in: path
+        required: true
+    get:
+      summary: Your GET endpoint
+      tags: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                title: item
+                type: object
+                x-tags:
+                  - backend
+                  - items
+                properties:
+                  id:
+                    type: string
+                description: Item used for recommendation
+      operationId: get-items-iid
+      description: "Retrieves item data from the server. This includes item attributes, but does not include the item's history of events."
+    put:
+      summary: ''
+      operationId: put-items-iid
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                title: item
+                type: object
+                x-tags:
+                  - backend
+                  - items
+                properties:
+                  id:
+                    type: string
+                description: Item used for recommendation
+      description: |-
+        If the specified ID is unused, a new item is created and assigned the ID.
+        If an existing item possesses the ID, the request must provide the item's most recent revision ID in order to update its data.
+        The request will return a new revision ID for use by a future update request.
+    delete:
+      summary: ''
+      operationId: delete-items-iid
+      responses:
+        '200':
+          description: OK
+      description: Deletes the item with the specified ID from the server. Precise behavior will vary between implementations.
+  /items:
+    post:
+      summary: ''
+      operationId: post-items
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                title: item
+                type: object
+                x-tags:
+                  - backend
+                  - items
+                properties:
+                  id:
+                    type: string
+                description: Item used for recommendation
+      description: |-
+        Adds a new item to the server. If an item ID is specified and currently unused, the item is assigned this ID. If an existing item possesses the ID, the request fails.
+        If no ID is specified, one is is generated for the item by the server and returned in the response.
+        The request will also return a new revision ID for use by a future update request.
+  '/items/{iid}/statistics':
+    parameters:
+      - type: string
+        name: iid
+        in: path
+        required: true
+    get:
+      summary: Your GET endpoint
+      tags: []
+      responses: {}
+      operationId: get-items-iid-statistics
+      description: Retrieves common statistics regarding the specified item.
+  '/items/{iid}/events/{type}':
+    parameters:
+      - type: string
+        name: iid
+        in: path
+        required: true
+      - schema:
+          type: string
+        name: type
+        in: path
+    get:
+      summary: Your GET endpoint
+      tags: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                title: event
+                type: object
+                x-tags:
+                  - backend
+                  - client
+                  - items
+                  - users
+                properties:
+                  eid:
+                    type: string
+                  type:
+                    type: string
+                  uid:
+                    type: string
+                  iid:
+                    type: string
+                  timestamp:
+                    type: string
+                  value:
+                    type: string
+                description: An interaction between a User and an Item
+      operationId: get-items-iid-events
+      description: Retrieve all events of a specific type associated with the specified item.
+      parameters:
+        - schema:
+            type: string
+          in: query
+          name: user
+          required: true
+        - schema:
+            type: string
+          in: query
+          name: history
+          required: true
+        - schema:
+            type: boolean
+          in: query
+          name: 'null'
+  '/events/{eid}':
+    parameters:
+      - type: string
+        name: eid
+        in: path
+        required: true
+    get:
+      summary: Your GET endpoint
+      tags: []
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                title: event
+                type: object
+                x-tags:
+                  - backend
+                  - client
+                  - items
+                  - users
+                properties:
+                  eid:
+                    type: string
+                  type:
+                    type: string
+                  uid:
+                    type: string
+                  iid:
+                    type: string
+                  timestamp:
+                    type: string
+                  value:
+                    type: string
+                description: An interaction between a User and an Item
+      operationId: get-events-eid
+      description: |-
+        Retrieves the specified event.
+        response example (JSON): {"eid":"945","type":"rating","uid":"516","iid":42,"timestamp":2005928682,"value":3.66}
+        timestamp represents the seconds since the Unix epoch (UTC). Implementations may provide additional attributes to support the user's local time.
+    delete:
+      summary: ''
+      operationId: delete-events-eid
+      responses:
+        '200':
+          description: OK
+      description: Deletes the specified event from the server.
+  /statistics:
+    get:
+      summary: Your GET endpoint
+      tags: []
+      responses: {}
+      operationId: get-statistics
+      description: Retrieves general system-wide statistics.
+components:
+  schemas: {}
+  securitySchemes: {}
